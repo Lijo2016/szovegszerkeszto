@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ómagyar – Rovásírás szerkesztő</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #202124;
+        color: white;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    header {
+        background: #292a2d;
+        padding: 15px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #444;
+    }
+
+    header h1 {
+        margin: 0;
+        font-size: 20px;
+    }
+
+    .buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    button {
+        border: none;
+        background: #3c4043;
+        color: white;
+        padding: 9px 14px;
+        border-radius: 7px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    button:hover {
+        background: #505357;
+    }
+
+    .editor {
+        flex: 1;
+        padding: 25px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .label {
+        color: #aaa;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+
+    #latin {
+        width: 100%;
+        height: 130px;
+        resize: vertical;
+        background: #303134;
+        color: white;
+        border: 1px solid #555;
+        border-radius: 10px;
+        padding: 15px;
+        font-size: 20px;
+        outline: none;
+    }
+
+    #latin:focus {
+        border-color: #8ab4f8;
+    }
+
+    .arrow {
+        text-align: center;
+        font-size: 25px;
+        margin: 15px;
+        color: #aaa;
+    }
+
+    #rovas {
+        width: 100%;
+        flex: 1;
+        min-height: 180px;
+        background: #faf7ef;
+        color: #171717;
+        border-radius: 10px;
+        padding: 25px;
+        font-family: "Noto Sans Old Hungarian",
+                     "Segoe UI Historic",
+                     "Noto Sans",
+                     sans-serif;
+        font-size: 42px;
+        line-height: 1.7;
+
+        /* Jobbról balra */
+        direction: rtl;
+        text-align: right;
+
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .info {
+        padding: 10px 20px;
+        background: #292a2d;
+        color: #aaa;
+        font-size: 12px;
+        text-align: center;
+    }
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>𐲀 Ómagyar / Rovásírás szerkesztő</h1>
+
+    <div class="buttons">
+        <button onclick="copyRovas()">📋 Másolás</button>
+        <button onclick="downloadTxt()">💾 Mentés TXT-ként</button>
+        <button onclick="clearText()">🗑 Törlés</button>
+    </div>
+</header>
+
+<div class="editor">
+
+    <div class="label">
+        Latin betűkkel gépelj:
+    </div>
+
+    <textarea
+        id="latin"
+        placeholder="Írd ide a szöveget..."
+        spellcheck="false"
+    ></textarea>
+
+    <div class="arrow">↓</div>
+
+    <div class="label">
+        Rovásírás – jobbról balra:
+    </div>
+
+    <div id="rovas" dir="rtl"></div>
+
+</div>
+
+<div class="info">
+    A felső mezőbe normál latin billentyűzettel írj. Az alsó mező automatikusan átalakul.
+</div>
+
+
+<script>
+
+/*
+    Magyar latin betűk → ómagyar rovásírás
+
+    Az ómagyar Unicode karaktereket használjuk.
+    Több betűs magyar hangokhoz külön rovásjelek tartoznak.
+*/
+
+const rovas = {
+
+    "a": "𐳀",
+    "á": "𐳁",
+
+    "b": "𐳂",
+    "c": "𐳃",
+    "cs": "𐳄",
+
+    "d": "𐳅",
+    "dz": "𐳆",
+    "dzs": "𐳇",
+
+    "e": "𐳈",
+    "é": "𐳉",
+
+    "f": "𐳊",
+    "g": "𐳋",
+    "gy": "𐳐",
+
+    "h": "𐳍",
+
+    "i": "𐳎",
+    "í": "𐳏",
+
+    "j": "𐳒",
+
+    "k": "𐳓",
+
+    "l": "𐳖",
+    "ly": "𐳗",
+
+    "m": "𐳘",
+    "n": "𐳙",
+    "ny": "𐳚",
+
+    "o": "𐳛",
+    "ó": "𐳜",
+
+    "ö": "𐳝",
+    "ő": "𐳞",
+
+    "p": "𐳟",
+    "q": "𐳠",
+    "r": "𐳢",
+
+    "s": "𐳤",
+    "sz": "𐳥",
+
+    "t": "𐳦",
+    "ty": "𐳧",
+
+    "u": "𐳨",
+    "ú": "𐳩",
+
+    "ü": "𐳪",
+    "ű": "𐳫",
+
+    "v": "𐳬",
+    "w": "𐳭",
+    "x": "𐳮",
+    "y": "𐳯",
+    "z": "𐳰",
+    "zs": "𐳱"
+};
+
+
+/*
+    Hosszabb betűkapcsolatokat előbb keresünk,
+    különben például a "sz" → s + z lenne.
+*/
+
+const sorrend = [
+    "dzs",
+    "cs",
+    "dz",
+    "gy",
+    "ly",
+    "ny",
+    "sz",
+    "ty",
+    "zs",
+
+    "á","é","í","ó","ö","ő","ú","ü","ű",
+
+    "a","b","c","d","e","f","g","h","i",
+    "j","k","l","m","n","o","p","q","r",
+    "s","t","u","v","w","x","y","z"
+];
+
+
+function convert(text) {
+
+    let result = "";
+    let i = 0;
+
+    while (i < text.length) {
+
+        let lower = text.slice(i).toLowerCase();
+
+        let found = false;
+
+        for (const betu of sorrend) {
+
+            if (lower.startsWith(betu)) {
+
+                let eredeti = text.slice(i, i + betu.length);
+
+                /*
+                    A nagybetűs kezdést itt egyszerűen
+                    ugyanazzal a rovásjellel kezeljük.
+                */
+
+                result += rovas[betu];
+
+                i += betu.length;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            result += text[i];
+            i++;
+        }
+    }
+
+    return result;
+}
+
+
+const latin = document.getElementById("latin");
+const output = document.getElementById("rovas");
+
+
+latin.addEventListener("input", function () {
+    output.textContent = convert(this.value);
+});
+
+
+function copyRovas() {
+
+    const text = output.textContent;
+
+    navigator.clipboard.writeText(text).then(() => {
+
+        alert("A rovásírásos szöveg kimásolva!");
+
+    }).catch(() => {
+
+        alert("A másolás nem sikerült.");
+    });
+}
+
+
+function downloadTxt() {
+
+    const text = output.textContent;
+
+    const blob = new Blob(
+        [text],
+        { type: "text/plain;charset=utf-8" }
+    );
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+
+    a.href = url;
+    a.download = "omas-rovasszoveg.txt";
+
+    document.body.appendChild(a);
+    a.click();
+
+    document.body.removeChild(a);
+
+    URL.revokeObjectURL(url);
+}
+
+
+function clearText() {
+
+    latin.value = "";
+    output.textContent = "";
+
+    latin.focus();
+}
+
+</script>
+
+</body>
+</html>
